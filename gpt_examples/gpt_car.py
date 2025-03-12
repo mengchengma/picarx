@@ -288,7 +288,8 @@ def main():
         gray_print(f'chat takes: {time.time() - st:.3f} s')
 
         # actions & TTS
-        # ---------------------------------------------------------------- 
+        # ----------------------------------------------------------------
+        _sound_actions = [] 
         try:
             if isinstance(response, dict):
                 if 'actions' in response:
@@ -301,7 +302,6 @@ def main():
                 else:
                     answer = ''
 
-                _sound_actions = []
                 if len(answer) > 0:
                     _actions = list.copy(actions)
                     for _action in _actions:
