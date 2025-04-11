@@ -3,7 +3,7 @@ import threading
 import time
 
 class MITMAttack:
-    def __init__(self, leader_host='0.0.0.0', leader_port=12345, 
+    def __init__(self, leader_host='192.168.1.6', leader_port=12345, 
                  follower_host='192.168.1.30', follower_port=12345):
         # Set up the server socket (pretending to be the leader)
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
