@@ -9,7 +9,7 @@ def start_leader():
 
     # Set up the server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('0.0.0.0', 12346))  # Listen on all interfaces on port 12345
+    server_socket.bind(('0.0.0.0', 12345))  # Changed to 12345 to match follower
     server_socket.listen(1)
     print("Leader is waiting for a connection...")
 
@@ -51,4 +51,4 @@ def start_leader():
         leader.stop()
 
 if __name__ == "__main__":
-    start_leader() 
+    start_leader()

@@ -7,40 +7,47 @@ def start_follower():
 
     # Set up the client
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('192.168.1.30', 12345))  # Replace with the leader's IP address
+    client_socket.connect(('192.168.1.34', 12345))  # Make sure IP is correct
+    print("Connected to leader")
 
     try:
         while True:
             # Receive data from the leader
             data = client_socket.recv(1024).decode('utf-8')
             if not data:
+                print("Connection lost")
                 break
             
-            leader_speed, key = data.split(',')
-            leader_speed = int(leader_speed)
+            print(f"Received: {data}")
+            try:
+                leader_speed, key = data.split(',')
+                leader_speed = int(leader_speed)
 
-            # Control follower based on the received key
-
-            if 'w' == key:
-                follower.set_dir_servo_angle(0)
-                follower.forward(80)
-            elif 's' == key:
-                follower.set_dir_servo_angle(0)
-                follower.backward(80)
-            elif 'a' == key:
-                follower.set_dir_servo_angle(-30)
-                follower.forward(80)
-            elif 'd' == key:
-                follower.set_dir_servo_angle(30)
-                follower.forward(80)
-            elif key == 'f':
-                follower.stop()
+                # Control follower based on the received key
+                if 'w' == key:
+                    follower.set_dir_servo_angle(0)
+                    follower.forward(80)
+                elif 's' == key:
+                    follower.set_dir_servo_angle(0)
+                    follower.backward(80)
+                elif 'a' == key:
+                    follower.set_dir_servo_angle(-30)
+                    follower.forward(80)
+                elif 'd' == key:
+                    follower.set_dir_servo_angle(30)
+                    follower.forward(80)
+                elif key == 'f':
+                    follower.stop()
+            except Exception as e:
+                print(f"Error processing data: {e}")
 
             # Introduce a delay based on the leader's speed
             sleep(0.1)  # Adjust the loop frequency as necessary
 
     except KeyboardInterrupt:
         print("Follower stopping...")
+    except Exception as e:
+        print(f"Error: {e}")
     finally:
         follower.stop()
         client_socket.close()
