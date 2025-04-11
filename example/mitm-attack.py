@@ -92,7 +92,6 @@ def start_mitm():
     print("- Left/Right directions reversed")
     print("- Forward movement delayed by 1 second")
     print("- Stop commands replaced with forward")
-    print("- Backward commands replaced with left turns")
     print("Edit the manipulate_direction() function to change behavior")
     
     # Start thread to handle communication from leader to follower
