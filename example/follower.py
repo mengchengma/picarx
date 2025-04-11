@@ -7,7 +7,7 @@ def start_follower():
 
     # Set up the client
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('192.168.1.34', 12345))  # Make sure IP is correct
+    client_socket.connect(('192.168.1.34', 12346))  # Make sure IP is correct
     print("Connected to leader")
 
     try:
