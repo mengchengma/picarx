@@ -5,14 +5,16 @@ from time import sleep
 def start_follower():
     follower = Picarx()
 
-    # Set up the client
+    # Set up the client to connect to AWS
+    aws_ip = '3.145.196.198'  # Replace with your EC2 public IP
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('192.168.1.34', 12346))  # Make sure IP is correct
-    print("Connected to leader")
+    print(f"Connecting to relay at {aws_ip}:12346...")
+    client_socket.connect((aws_ip, 12346))
+    print("Connected to relay")
 
     try:
         while True:
-            # Receive data from the leader
+            # Receive data from the relay
             data = client_socket.recv(1024).decode('utf-8')
             if not data:
                 print("Connection lost")

@@ -7,14 +7,12 @@ def start_leader():
     leader = Picarx()
     leader_speed = 50  # Default speed
 
-    # Set up the server
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('0.0.0.0', 12345))  # Changed to 12345 to match follower
-    server_socket.listen(1)
-    print("Leader is waiting for a connection...")
-
-    conn, addr = server_socket.accept()
-    print(f"Connection established with {addr}")
+    # Set up the client to connect to AWS
+    aws_ip = '3.145.196.198'  # Replace with your EC2 public IP
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print(f"Connecting to relay at {aws_ip}:12345...")
+    client_socket.connect((aws_ip, 12345))
+    print("Connected to relay server")
 
     try:
         while True:
@@ -40,14 +38,15 @@ def start_leader():
 
             # Send leader's speed and key pressed
             data = f"{leader_speed},{key}"
-            conn.sendall(data.encode('utf-8'))
+            client_socket.sendall(data.encode('utf-8'))
             sleep(0.1)  # Adjust the frequency of sending data
 
     except KeyboardInterrupt:
         print("Leader stopping...")
+    except Exception as e:
+        print(f"Error: {e}")
     finally:
-        conn.close()
-        server_socket.close()
+        client_socket.close()
         leader.stop()
 
 if __name__ == "__main__":
