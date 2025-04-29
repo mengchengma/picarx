@@ -12,6 +12,9 @@ def start_follower():
     client_socket.connect((aws_ip, 12346))
     print("Connected to relay")
 
+    # Last received command
+    last_command = 'f'  # Default to stopped
+
     try:
         while True:
             # Receive data from the relay
@@ -24,27 +27,33 @@ def start_follower():
             try:
                 leader_speed, key = data.split(',')
                 leader_speed = int(leader_speed)
-
-                # Control follower based on the received key
-                if 'w' == key:
-                    follower.set_dir_servo_angle(0)
-                    follower.forward(80)
-                elif 's' == key:
-                    follower.set_dir_servo_angle(0)
-                    follower.backward(80)
-                elif 'a' == key:
-                    follower.set_dir_servo_angle(-30)
-                    follower.forward(80)
-                elif 'd' == key:
-                    follower.set_dir_servo_angle(30)
-                    follower.forward(80)
-                elif key == 'f':
-                    follower.stop()
+                
+                # Only update the command if it's different or None
+                if key != last_command:
+                    last_command = key
+                    
+                    # Control follower based on the received key
+                    if key == 'w':
+                        follower.set_dir_servo_angle(0)
+                        follower.forward(80)
+                    elif key == 's':
+                        follower.set_dir_servo_angle(0)
+                        follower.backward(80)
+                    elif key == 'a':
+                        follower.set_dir_servo_angle(-30)
+                        follower.forward(80)
+                    elif key == 'd':
+                        follower.set_dir_servo_angle(30)
+                        follower.forward(80)
+                    elif key == 'f' or key == 'None':
+                        follower.stop()
+                        
             except Exception as e:
                 print(f"Error processing data: {e}")
+                follower.stop()  # Safety measure: stop on error
 
-            # Introduce a delay based on the leader's speed
-            sleep(0.1)  # Adjust the loop frequency as necessary
+            # Match the control loop frequency of the leader
+            sleep(0.1)
 
     except KeyboardInterrupt:
         print("Follower stopping...")

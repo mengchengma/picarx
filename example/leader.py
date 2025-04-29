@@ -1,6 +1,7 @@
 import socket
 from picarx import Picarx
 from time import sleep
+import threading
 import readchar
 
 def start_leader():
@@ -14,40 +15,65 @@ def start_leader():
     client_socket.connect((aws_ip, 12345))
     print("Connected to relay server")
 
-    try:
-        while True:
-            # User control for direction
+    # Variable to store the currently pressed key
+    current_key = None
+    running = True
+
+    # Function to continuously check for key presses
+    def key_reader():
+        nonlocal current_key, running
+        while running:
             key = readchar.readkey().lower()
+            # Update the current key
+            if key in ['w', 'a', 's', 'd']:
+                current_key = key
+                print(f"Key pressed: {key}")
+            elif key == 'f':
+                current_key = 'f'  # Stop command
+                print("Stopping")
+            elif key == 'q':
+                current_key = None
+                running = False
+                print("Quitting")
             
-            if 'w' == key:
+    # Start the key reading thread
+    key_thread = threading.Thread(target=key_reader)
+    key_thread.daemon = True
+    key_thread.start()
+
+    try:
+        while running:
+            # Process the current key state
+            if current_key == 'w':
                 leader.set_dir_servo_angle(0)
                 leader.forward(80)
-            elif 's' == key:
+            elif current_key == 's':
                 leader.set_dir_servo_angle(0)
                 leader.backward(80)
-            elif 'a' == key:
+            elif current_key == 'a':
                 leader.set_dir_servo_angle(-30)
                 leader.forward(80)
-            elif 'd' == key:
+            elif current_key == 'd':
                 leader.set_dir_servo_angle(30)
                 leader.forward(80)
-            elif key == 'f':
+            elif current_key == 'f' or current_key is None:
                 leader.stop()  # Stop the vehicle
-            elif key == 'q':
-                break  # Exit the loop
-
-            # Send leader's speed and key pressed
-            data = f"{leader_speed},{key}"
+            
+            # Send leader's speed and current key state
+            data = f"{leader_speed},{current_key if current_key else 'f'}"
             client_socket.sendall(data.encode('utf-8'))
-            sleep(0.1)  # Adjust the frequency of sending data
+            sleep(0.1)  # Control loop frequency
 
     except KeyboardInterrupt:
         print("Leader stopping...")
     except Exception as e:
         print(f"Error: {e}")
     finally:
+        running = False
         client_socket.close()
         leader.stop()
+        # Wait for key thread to finish
+        key_thread.join(timeout=1.0)
 
 if __name__ == "__main__":
     start_leader()
