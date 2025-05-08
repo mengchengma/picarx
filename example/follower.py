@@ -6,7 +6,7 @@ def start_follower():
     follower = Picarx()
 
     # Set up the client to connect to AWS
-    aws_ip = '3.16.51.104'  # Replace with your EC2 public IP
+    aws_ip = '3.141.31.197'  # Replace with your EC2 public IP
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     print(f"Connecting to relay at {aws_ip}:12346...")
     client_socket.connect((aws_ip, 12346))
